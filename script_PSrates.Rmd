@@ -1,0 +1,588 @@
+---
+title: "Plot and statistical analysis"
+author: ""
+date: "`r format(Sys.time(), '%H:%M, %d %B, %Y')`"
+output:
+    html_document:
+      toc: true
+      toc_float: true
+      toc_depth: 4
+      theme: cerulean
+      highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set variables for personalisation
+
+```{r}
+#1. Data
+#------------------------------------------------------------------------------
+
+# Put your input file in variable DATA 
+DATA <- "example_script_PSrates.xlsx"
+
+
+#2. Parameters for plot
+#------------------------------------------------------------------------------
+# Points color
+COLOUR <- "#000000"
+
+# Select a palette for CI color
+PALETTE <- "Greens"
+
+#3. Global parameters
+var1 <- "Line"
+var2 <- "Treatment"
+MEASURE_COL <- "PSIIrate"
+
+```
+
+## 1. Introduction
+
+The analysis reported here is part of the manuscript Romand et al. 2021. The script performs statistical analysis on data grouped by `r var1` and `r var2` and plots a graph. Different approaches are used depending on the normality of the data as determined by the Shapiro test. If data follow a normal distribution, then the script performs Anova and post-hoc Tukey tests and draws a plot with confidence interval centered on mean. If data do not follow a normal distribution then a Kruskal-Wallis and a pot-hoc Dunn test are performed. The same plot is drawn using the medians and boostrap calculated 95% confidence intervals. The plots are also saved as pdf and vector (SVG) files.
+
+
+## 2. Data
+
+A 3 column data set in `xlsx`. Column 1, `r var2`; column 2, `r var1` and column 3 the measured quantity, in this case `r MEASURE_COL`. 
+The 2 first columns are factors that are used to group the data.
+
+This script can be simply modified to analyse different parameters or different Treatments. It can also be modified to analyse data grouped by additional factors such as Time. 
+
+## 3. Data analysis
+
+### 3.1. Code
+
+<br/>
+
+`r {"Working directory:"}`
+`r  getwd()`
+
+<br/>
+
+#### Setup R packages
+
+```{r message=FALSE, results= FALSE, warning = FALSE}
+if (!require(ggbeeswarm)) { install.packages("ggbeeswarm", repos = "http://cran.us.r-project.org") }
+if (!require(Rmisc)) { install.packages("Rmisc", repos = "http://cran.us.r-project.org") }
+if (!require(ggplot2)) { install.packages("ggplot2", repos = "http://cran.us.r-project.org") }
+if (!require(RColorBrewer)) { install.packages("RColorBrewer", repos = "http://cran.us.r-project.org") }
+if (!require(dplyr)) { install.packages("dplyr", repos = "http://cran.us.r-project.org") }
+if (!require(rstatix)) { install.packages("rstatix", repos = "https://cloud.r-project.org") }
+if (!require(purrr)) { install.packages("purrr", repos = "http://cran.us.r-project.org") }
+if (!require(tidyr)) { install.packages("tidyr", repos = "http://cran.us.r-project.org") }
+if (!require(magrittr)) { install.packages("magrittr", repos = "http://cran.us.r-project.org") }
+if (!require(boot)) { install.packages("boot", repos = "http://cran.us.r-project.org") }
+if (!require(devtools)) { install.packages("devtools", repos = "http://cran.us.r-project.org") }
+if (!require(knitr)) { install.packages("knitr", repos = "http://cran.us.r-project.org") }
+if (!require(svglite)) { install.packages("svglite", repos = "http://cran.us.r-project.org") }
+if (!require(multcompView)) { install.packages("multcompView", repos = "http://cran.us.r-project.org") }
+if (!require(emmeans)) { install.packages("emmeans", repos = "http://cran.us.r-project.org") }
+if (!require(nparcomp)) { install.packages("nparcomp", repos = "http://cran.us.r-project.org") }
+if (!require(summarytools)) { install.packages("summarytools", repos =  "http://cran.us.r-project.org")}
+if (!require(kableExtra)) { install.packages("kableExtra", repos =  "http://cran.us.r-project.org") }
+
+
+
+library(ggplot2)
+library(ggbeeswarm)
+library(Rmisc)
+library(readxl)
+library(RColorBrewer)
+library(rstatix)
+library(boot)
+library(magrittr)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(rstatix)
+library(knitr)
+library(svglite)
+library(multcompView)
+library(nparcomp)
+library(emmeans)
+library(summarytools)
+library(kableExtra)
+library(car)
+
+```
+
+#### Functions used in the script
+
+```{r}
+#===============================================================================
+# Draw the bar plot if data follow a normal distribution
+#===============================================================================
+
+plot_normal <- function(df, my_colours, my_summary) {
+  p <- ggplot(data = my_summary, aes(x = !!sym(var1), y = !!sym(MEASURE_COL), fill = !!sym(var1))) +
+    geom_bar(stat = "identity", position = position_dodge(), width = 0.8, color = "darkgrey") +
+    geom_linerange(aes(ymin = !!sym(MEASURE_COL) - ci, ymax = !!sym(MEASURE_COL) + ci), width = 0.2, position = position_dodge(0.8)) +
+    geom_quasirandom(data = df, aes(x = !!sym(var1), y = !!sym(MEASURE_COL)), color = COLOUR, width = 0.3, alpha = 0.6) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+    scale_fill_manual(values = my_colours) +
+    facet_wrap(as.formula(paste("~", var2)), strip.position = "bottom", scales = "free_x") +
+    theme_classic() +
+    theme(
+      panel.spacing = unit(0, "lines"),
+      strip.background = element_blank(),
+      strip.placement = "outside",
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+      legend.title = element_blank()
+    )
+  print(p)
+}
+
+#===============================================================================
+# Draw the bar plot if data do not follow a normal distribution
+#===============================================================================
+
+plot_not_normal <- function(df, my_colours, booted_summary) {
+  p <- ggplot(data = booted_summary, aes(x = !!sym(var1), y = !!sym(MEASURE_COL), fill = !!sym(var1))) +
+    geom_bar(stat = "identity", position = position_dodge(), width = 0.8, color = "darkgrey") +
+    geom_linerange(aes(ymin = lower_ci_perc, ymax = upper_ci_perc), width = 0.2, position = position_dodge(0.8)) +
+    geom_quasirandom(data = df, aes(x = !!sym(var1), y = !!sym(MEASURE_COL)), color = COLOUR, width = 0.3, alpha = 0.6) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+    scale_fill_manual(values = my_colours) +
+    facet_wrap(as.formula(paste("~", var2)), strip.position = "bottom", scales = "free_x") +
+    theme_classic() +
+    theme(
+      panel.spacing = unit(0, "lines"),
+      strip.background = element_blank(),
+      strip.placement = "outside",
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+      legend.title = element_blank()
+    )
+  print(p)
+}
+
+#===============================================================================
+# Check normality of the data. Exit the loop if one set of data doesn't follow a 
+# normal distribution.
+# Return TRUE if all data follow a normal distribution
+#===============================================================================
+
+check_normality <- function(shapiro_df) {
+    # Data are supposed to follow normal distribution
+    flag_normal <- TRUE
+    
+    for (i in 1 : nrow(shapiro_df)) {
+        # Check if the p-value is not NA and greater than 0.05
+        if (!is.na(shapiro_df[i, 4]) && shapiro_df[i, 4] > 0.05) {
+            # Do nothing, this data set follows a normal distribution
+        } else if (!is.na(shapiro_df[i, 4]) && shapiro_df[i, 4] <= 0.05) {
+            # If p-value is less than or equal to 0.05, mark it as non-normal
+            flag_normal <- FALSE
+            break
+        }
+        # If p-value is NA, we skip the check and treat it as normal
+    }
+    return(flag_normal)
+}
+
+#===============================================================================
+# Check variance homogeneity of the data using Levene's test
+# Return TRUE if all subsets have homogeneous variance
+#===============================================================================
+
+check_variance <- function(levene_df) {
+    # Data are supposed to have homogeneous variance
+    flag_homogeneous <- TRUE
+    
+    for (i in 1 : nrow(levene_df)) {
+        if(levene_df[i, "p.value"] > 0.05) {
+            # Variance is homogeneous
+        } else {
+            # Variance is not homogeneous
+            flag_homogeneous <- FALSE
+            break
+        }
+    }
+    return(flag_homogeneous)
+}
+
+#===============================================================================
+#Function to calculate the median (for bootstrapping)
+#===============================================================================
+
+samplemedian <- function(d, i) {
+    median(d[i])
+}
+
+#===============================================================================
+#Function for Dunn test
+#===============================================================================
+
+test_dunn <- function() {
+    pval <- as.data.frame(df %>% group_by(!!sym(var2)) %>% dunn_test(as.formula(paste(MEASURE_COL, "~", var1)), p.adjust.method = "bonferroni"))
+    print(df %>% group_by(!!sym(var2)) %>% dunn_test(as.formula(paste(MEASURE_COL, "~", var1)), p.adjust.method = "bonferroni"))
+    return(pval)
+}
+```
+
+#### Main script
+
+```{r fig.show='hide',  message=FALSE, warning=FALSE, results = 'hide', echo=TRUE, fig.retina = 1}
+# Import Data
+df <- read_excel(DATA)
+df[[var1]] <- make.names(df[[var1]])
+
+# Define color
+my_colours = brewer.pal(n = 9, PALETTE)[9:3]
+
+# Determining data normality status
+shapiro_df <- df %>%
+  group_by(!!sym(var2), !!sym(var1)) %>%
+  summarise(
+    statistic = if(length(unique(.data[[MEASURE_COL]])) > 1) {
+      shapiro.test(.data[[MEASURE_COL]])$statistic
+    } else {
+      NA  # Assign NA or a custom message for groups with identical values
+    },
+    p.value = if(length(unique(.data[[MEASURE_COL]])) > 1) {
+      shapiro.test(.data[[MEASURE_COL]])$p.value
+    } else {
+      NA  # Assign NA or a custom message for groups with identical values
+    }
+  )
+
+# After the summarise pipe, call the check_normality function separately
+flag_normal <- check_normality(shapiro_df)
+
+# Determining variance homogeneity status using Levene's test
+levene_df <- df %>%
+  group_by(!!sym(var2)) %>%
+  do({
+    data_subset <- .
+    if (n_distinct(data_subset[[var1]]) > 1) {
+      # Try running leveneTest and handle cases where it fails gracefully
+      tryCatch({
+        levene_result <- leveneTest(as.formula(paste(MEASURE_COL, "~", var1)), data = data_subset)
+        data.frame(statistic = as.numeric(levene_result$`F value`[1]), p.value = as.numeric(levene_result$`Pr(>F)`[1]))
+      }, error = function(e) {
+        # If there is an error, return NA for statistic and p-value
+        data.frame(statistic = NA, p.value = NA)
+      })
+    } else {
+      # If there's only one level, return NA
+      data.frame(statistic = NA, p.value = NA)
+    }
+  }) %>%
+  ungroup()
+
+
+
+# Check variance homogeneity status
+flag_homogeneous <- check_variance(levene_df)
+
+
+# Data treatement according to normality status
+if(flag_normal == TRUE) {
+    #print("Data follow a normal distribution")
+    
+    # Summary
+    my_summary <- summarySE(df, measurevar=MEASURE_COL, groupvars=c(var1, var2))
+    
+    # Plot
+    plot_normal(df, my_colours, my_summary)
+    
+    # Stats
+    anova_results <- df %>% group_by(!!sym(var2)) %>%  anova_test(as.formula(paste(MEASURE_COL, "~", var1)))
+    
+    # Perform Tukey HSD test
+tukey_results <- df %>%
+  group_by(!!sym(var2)) %>%
+  tukey_hsd(as.formula(paste(MEASURE_COL, "~", var1)))
+
+# Check Tukey results to ensure valid p-values
+print(tukey_results)
+
+# Fit the linear model
+model <- lm(as.formula(paste(MEASURE_COL, "~", var1)), data = df)
+
+# Obtain estimated marginal means
+emm <- emmeans(model, as.formula(paste("~", var1)))
+
+# Generate CLD letters
+cld_result <- cld(emm, adjust = "tukey", Letters = letters, sort = FALSE)
+
+# Create the final CLD table
+cld_table <- cld_result %>%
+  as.data.frame() %>%
+  dplyr::select(!!sym(var1), cld = .group)
+
+# Print the final CLD table
+print(cld_table)
+    
+   # Save plot
+    ggsave("my_ggplot1.pdf", width=4, height=5)
+    ggsave("my_ggplot1.svg", width=4, height=5)
+    
+} else {
+    #print("Data do not follow a normal distribution")
+    
+    # Calculate Median and 95%CI by bootstrap (Largely based on code by Peter Kamerman: 
+    #https://www.painblogr.org/2017-10-18-purrring-through-bootstraps.html)
+    
+    #1. Set the seed
+    set.seed(12345)
+    
+    #2. Create nested datafile to allow boostrapping on each subgroup.
+    my_data_nested <- df %>% group_by(!!sym(var1), !!sym(var2)) %>% nest()
+    
+    #3. Add boostrapped median values to my_nested_data
+    my_data_nested %<>% dplyr::mutate(booted = purrr::map(.x = data, ~ boot::boot(data = .x[[MEASURE_COL]],statistic = samplemedian, R = 10000, stype = "i")))
+    
+    #4. Check if the bootstrap object contains valid values before plotting
+    plots <- purrr::map(.x = my_data_nested$booted, ~ {
+      if (all(is.finite(.x$t))) {
+        tryCatch({
+          plot(.x)
+        }, error = function(e) {
+          warning("Error in plotting bootstrap results: ", conditionMessage(e))
+          NULL
+        })
+      } else {
+        warning("Bootstrap results contain NA/NaN values, skipping plot.")
+        NULL
+      }
+    })
+    print(plots)
+
+
+    #5. Add boostrapped 95%CI around median values to my_nested_data, 
+    #95%CI determined based on "perc" & "bca"
+    my_data_nested %<>% mutate(booted_ci = purrr::map(.x = booted, 
+                                                      ~ tryCatch({
+                                                        boot::boot.ci(.x, conf = 0.95, type = c("perc", "bca"))
+                                                      }, error = function(e) {
+                                                        warning("Error in calculating confidence intervals: ", conditionMessage(e))
+                                                        NULL
+                                                      })))
+    
+    #6. Table of each <S3: bootci> object to check
+    ci_table <-purrr::map(.x = my_data_nested$booted_ci, ~ print(.x))
+    
+    # 7. Get the stats (median and 95% CI) from the nested dataframe into a regular dataframe 
+# (my_data_booted_summary) with 95%CI determined by "bca" or "perc" method
+booted_summary <- my_data_nested %>% 
+  mutate(
+    !!sym(MEASURE_COL) := purrr::map_dbl(.x = booted_ci, ~ if (!is.null(.x)) .x$t0 else NA_real_),
+    lower_ci_bca = purrr::map_dbl(.x = booted_ci, ~ if (!is.null(.x) && "bca" %in% names(.x)) .x$bca[[4]] else NA_real_),
+    upper_ci_bca = purrr::map_dbl(.x = booted_ci, ~ if (!is.null(.x) && "bca" %in% names(.x)) .x$bca[[5]] else NA_real_),
+    lower_ci_perc = purrr::map_dbl(.x = booted_ci, ~ if (!is.null(.x) && "perc" %in% names(.x)) .x$perc[[4]] else NA_real_),
+    upper_ci_perc = purrr::map_dbl(.x = booted_ci, ~ if (!is.null(.x) && "perc" %in% names(.x)) .x$perc[[5]] else NA_real_)
+  ) %>%  
+  dplyr::select(-data, -booted, -booted_ci)
+
+# Update missing error bars in booted_summary
+booted_summary <- booted_summary %>% 
+  mutate(
+    lower_ci_perc = ifelse(is.na(lower_ci_perc), lower_ci_bca, lower_ci_perc),
+    upper_ci_perc = ifelse(is.na(upper_ci_perc), upper_ci_bca, upper_ci_perc)
+  )
+    # Plot
+    plot_not_normal(df, my_colours, booted_summary)
+    
+    # Stats
+     
+    kruskal_pval <- (df %>% group_by(!!sym(var2))%>%kruskal_test(as.formula(paste(MEASURE_COL, "~", var1)))) %>% dplyr::select(!!sym(var2), p)
+    
+    kruskal_pval <- as.data.frame(kruskal_pval)
+    
+    print(kruskal_pval)
+    
+    pval_dunn <- df %>% group_by(!!sym(var2)) %>%   dunn_test(as.formula(paste(MEASURE_COL, "~", var1)), p.adjust.method = "BY")
+
+
+# Perform Dunn's test with BY adjustment
+pval_dunn <- df %>% 
+  group_by(!!sym(var2)) %>% 
+  dunn_test(as.formula(paste(MEASURE_COL, "~", var1)), p.adjust.method = "BY")
+
+# Extract all unique lines
+unique_lines <- unique(c(pval_dunn$group1, pval_dunn$group2))
+
+# Create a matrix to represent significance relationships between groups
+# Initialize it to TRUE, which means all groups are significantly different by default
+comparison_matrix <- matrix(TRUE, nrow = length(unique_lines), ncol = length(unique_lines))
+rownames(comparison_matrix) <- unique_lines
+colnames(comparison_matrix) <- unique_lines
+
+# Set non-significant comparisons (p.adj > 0.05) to FALSE in the matrix
+for (i in 1:nrow(pval_dunn)) {
+  if (pval_dunn$p.adj[i] > 0.05) {
+    g1 <- pval_dunn$group1[i]
+    g2 <- pval_dunn$group2[i]
+    comparison_matrix[g1, g2] <- FALSE
+    comparison_matrix[g2, g1] <- FALSE
+  }
+}
+
+# Use multcompView::multcompLetters to generate the CLD letters
+group_letters <- multcompView::multcompLetters(comparison_matrix)$Letters
+
+# Convert the letters to a data frame
+cld_table <- data.frame(Line = names(group_letters), cld = group_letters)
+
+# Display the CLD table
+print(cld_table)
+
+    
+    # Save plot
+    ggsave("my_ggplot1.pdf", width=4, height=5)
+    ggsave("my_ggplot1.svg", width=4, height=5)
+}
+
+```
+
+
+### 3.2. Results
+
+#### a. Summary statistics and normality status
+
+```{css, echo = FALSE}
+caption {
+  color: black;
+      font-weight: bold;
+      font-size: 1.0em;
+    }
+```
+
+##### Data summary all
+
+```{r results='asis', echo=FALSE}
+#print(dfSummary(df, plain.ascii = FALSE, style = "grid", 
+#                graph.magnif = 0.75, 
+#                headings = FALSE,
+#                valid.col = FALSE,
+#                max.tbl.height = 300,
+#                tmp.img.dir = "/tmp"), method = "render")
+```
+          
+##### Data summary `r var1`
+
+```{r results='asis', echo=FALSE}
+#df_subset <- df %>% group_by(!!sym(var1)) %>%
+#  dfSummary(plain.ascii = FALSE, style = "grid",
+#            graph.magnif = 0.75,
+#            headings = FALSE,
+#            valid.col = FALSE,
+#            max.tbl.height = 300,
+#            tmp.img.dir = "/tmp")
+#
+#print(df_subset, method = "render")
+```
+          
+##### Normality test
+
+`r {kable(shapiro_df, caption = "Table 1 : Shapiro test results.", digits = 30)%>%
+  kable_styling(bootstrap_options = "striped", "hover")}`
+
+`r if(flag_normal == TRUE) {"**Data follow a normal distribution. Now calculating means and confidence intervals for each line-Treatment combination.**"} else {"**Data do not follow a normal distribution. Now calculating medians and confidence intervals by a boostrap procedure for each line-Treatment combination.**"}`  
+
+<br/>
+
+
+##### Variance test
+
+`r {kable(levene_df, caption = "Table 2 : Levene's test for homogeneity of variances.", digits = 30)%>%
+  kable_styling(bootstrap_options = "striped", "hover")}`
+
+`r if(flag_homogeneous == TRUE) {"**Data have homogeneous variances. Proceeding with parametric analysis if normality is also met.**"} else {"**Data do not have homogeneous variances. .**"}`
+
+```{r echo=FALSE, fig.retina= 1, fig.show='hold', message=FALSE, warning=FALSE, results='hide'}
+if(flag_normal == FALSE) {
+  plots<-purrr::map(.x = my_data_nested$booted, ~ {
+    if (all(is.finite(.x$t))) {
+      tryCatch({
+        plot(.x)
+      }, error = function(e) {
+        warning("Error in plotting bootstrap results: ", conditionMessage(e))
+        NULL
+      })
+    } else {
+      warning("Bootstrap results contain NA/NaN values, skipping plot.")
+      NULL
+    }
+  })
+  print(plots)
+}
+```
+
+`r if(flag_normal == FALSE) {"**Fig 1. : Boostrapping plots**"}`
+
+<br/>
+
+#### b. Final data plot  
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.retina=1}
+if(flag_normal == TRUE) {
+  # Plot
+  plot_normal(df, my_colours, my_summary)
+} else { 
+  plot_not_normal(df, my_colours, booted_summary)
+}  
+```
+
+`r if(flag_normal == TRUE) {"**Fig 1: Confidence interval plot (normal distribution)**"} else {"**Fig 2: Confidence interval plot (non-normal distribution)**"}`
+
+#### c. Statistical analysis
+
+##### Summary statistics
+
+```{r results='asis', echo=FALSE}
+if(flag_normal == TRUE) {
+  kable(my_summary, caption = "Table 3: Summary statistics for normal data", digits = 3)%>%
+  kable_styling(bootstrap_options = "striped", "hover")
+} else {
+  kable(booted_summary, caption = "Table 3: Summary statistics for non-normal data", digits = 3)%>%
+  kable_styling(bootstrap_options = "striped", "hover")
+}
+```
+
+##### Statistical tests within each Treatment condition
+
+```{r results='asis', echo=FALSE}
+if(flag_normal == TRUE) {
+# ANOVA results table
+kable(anova_results, caption = "Table 4: ANOVA results", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", "hover")
+} else {
+# Kruskal results table
+  kable(kruskal_pval, caption = "Table 4: Kruskal-Wallis test results", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", "hover")
+}
+```
+<br/>
+
+```{r results='asis', echo=FALSE}
+if(flag_normal == TRUE) {
+
+# Tukey HSD test results table
+kable(tukey_results[, c("Treatment", "group1", "group2", "p.adj", "p.adj.signif")], caption = "Table 5: Tukey HSD test results", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", "hover")
+} else {
+# Dunn test results table
+  kable(pval_dunn[, c("Treatment", "group1", "group2", "p.adj", "p.adj.signif")], caption = "Table 5: Dunn's test results", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", "hover")
+
+}
+```
+##### Compact Letter Display (CLD) Groups
+
+```{r results='asis', echo=FALSE}
+kable(cld_table, caption = "Table 5: CLD groups")%>%
+  kable_styling(bootstrap_options = "striped", "hover")
+```
+
+### 4. R session information
+
+```{r}
+InfoSession <- devtools::session_info()
+print(InfoSession)
+```
+
