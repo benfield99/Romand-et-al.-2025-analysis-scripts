@@ -1,6 +1,7 @@
 Repository — Data Analysis Scripts for Romand et al. Guanosine tetraphosphate (ppGpp) signalling promotes high-light tolerance in Arabidopsis thaliana.
 
-This repository contains the R scripts used for the analyses presented in the manuscript.
+This repository contains the R scripts used for the analyses presented in the manuscript Romand et al. 2025.
+ DOI: https://doi.org/10.57745/YZCG1W
 
 Each script performs a specific analysis used in the study, covering chlorophyll fluorescence, pigment quantification, 77 K emission spectra, and simple response data (e.g. metabolites or immunoblot quantification). The repository is intended to ensure analytical transparency and reproducibility.
 
@@ -41,7 +42,7 @@ Each script is self-contained and can be executed independently.
 
 The complete raw and processed datasets are archived in the French National Data Repository (Recherche Data Gouv):
 
-DOI: [tba]
+DOI:  https://doi.org/10.57745/YZCG1W
 
 Only minimal example data are included here for demonstration.
 
