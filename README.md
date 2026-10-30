@@ -123,7 +123,7 @@ Each script starts with a header giving:
 - its inputs and outputs;
 - the statistical method.
 
-Each family folder has a `README.txt` with more detail.
+Each family folder has a `README.txt` with more detail, including which parameters can be changed in the settings block at the top of each script and which are fixed in the code (column names, colours, output file names, plot sizes).
 
 ---
 

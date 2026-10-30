@@ -26,3 +26,13 @@ Example data
   Copy the script into the example folder and run it there.
 
 Line codes: WT1 = wild type, H1 = OX:RSH3.1, H1npq1 / H1npq4 = OX:RSH3.1 npq1 / npq4.
+
+What you can change
+  Settings at the top: DATA (NPQ file), CODE (code -> seconds file).
+
+Fixed in the code (edit the code to change)
+  - The NPQ file has no header and exactly four replicate columns (named rep1-rep4 by the script):
+    time, line, code, rep1, rep2, rep3, rep4.
+  - Line colour (chartreuse3); one facet per line; one page per time point.
+  - Output file NPQ_plots.pdf, 10 x 8 in; significance level for the Shapiro-Wilk test 0.05;
+    bootstrap 5000 resamples, 95% CI.

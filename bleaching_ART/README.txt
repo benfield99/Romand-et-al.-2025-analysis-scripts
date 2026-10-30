@@ -29,3 +29,24 @@ Example data
 
 Line codes: col / Col / WT = wild type, h1 / H1 = OX:RSH3.1, g8 = OX:RSH3.2, CH1 = ch1,
 CH1H1 = OX:RSH3.1 ch1, GLK = glk1,2.
+
+What you can change
+  Settings block at the top of both scripts:
+    DATA_FILES                   input files, one per replicate; the list names (rep1, rep2, ...) become
+                                 the replicate labels
+    TARGET_TIME                  time point analysed (value of the time column)
+    MEASURE_COL                  response column
+    var_line, var_time, var_rep  names of the line, time and replicate columns
+    order_line                   lines to show, in plot order
+    plot_width, plot_height      size of the saved plot (inches)
+  bleach_panel_24h.r also has:
+    LINE_RENAME                  renames lines before analysis (e.g. c(Col = "WT"))
+
+Fixed in the code (edit the code to change)
+  - Replicate colours are defined for rep1-rep3; a fourth replicate needs a colour added in
+    scale_color_manual().
+  - The y axis starts at 0; the y-axis label is built from MEASURE_COL and TARGET_TIME.
+  - Bootstrap: 5000 resamples, BCa intervals (percentile if BCa fails); 95% CI; BH adjustment.
+  - bleaching_ART.r: output file names contain "48h" whatever TARGET_TIME is, and the plot is saved as
+    bleach_panel_48h23.svg. For other time points use bleach_panel_24h.r, whose output names follow
+    TARGET_TIME.

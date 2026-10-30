@@ -41,3 +41,43 @@ Example data
   Copy the script into the example folder and run it there.
 
 Line codes: 01_WT / Col / WT = wild type, 02_H1 / H1 / OXRSH3.1 = OX:RSH3.1, 03_G8 / OXRSH3.2 = OX:RSH3.2.
+
+What you can change, and what is fixed in the code
+  Common to all (fixed): significance level 0.05; bootstrap 5000 resamples, 95% CI.
+
+  ELIP2_anova.r (version 2)
+    Settings: RefLine, target_order, input file (in the read_excel() line).
+    Fixed: columns ratio, line and treatment; output fvfm_plot2.svg, 2 x 3 in.
+
+  HOTE_anova.r (version 3)
+    Settings: RefLine, target_order, DATA, treatment_order.
+    Fixed: columns ROS, line and treatment; y-axis label ROS; outputs ros_plot_24.svg (parametric)
+    or ros_plot_2.svg (non-parametric), 2 x 4 in.
+
+  ppGpp_anova.r (version 4)
+    Settings: COLUMN_LINE_COLOUR, COLUMN_FILL_COLOUR, POINT_COLOR, PALETTE (RColorBrewer palette for the
+    bars; comment it out to use COLUMN_FILL_COLOUR), DATA, var1, var2, MEASURE_COL, plot_width,
+    plot_height, RefLine.
+    Fixed: axis labels "Treatment" and "Median Value"; output names plot_normal.svg / plot_nonpara.svg.
+
+  ppGpp_anova_extended.r
+    Settings: as version 4, plus Y_LABEL (y-axis label) and OUTPUT_DIR (output folder).
+    Fixed: factor order is taken from the order in the Excel file; var1 and var2 are swapped when var2
+    has a single level.
+
+  tocopherols_anova.R, PSrates_anova.R (multi-measure)
+    Settings: COLUMN_LINE_COLOUR, PALETTE, POINT_COLOR, START_Y_AT_ZERO, DATA, var1 (panels),
+    var2 (bars), MEASURE_INCLUDE (measures and their order; NULL = all numeric columns), Y_LABELS,
+    order1, order2 (factor order; NULL = alphabetical), OUTPUT_BASE, plot_width, plot_height
+    (per panel), combined_ncol.
+    Fixed: name of the combined figure (ALL_toco_bar_CLD / ALL_PSrates_bar_CLD, near the end of the
+    script); Dunn test only with 3 or more groups.
+
+  pigments_anova.R
+    Settings: COLUMN_LINE_COLOUR, COLUMN_FILL_COLOUR, POINT_COLOR, START_Y_AT_ZERO, DATA, var1, var2,
+    PIGMENT_INCLUDE (NULL = all numeric columns), order1, order2, OUTPUT_BASE, plot_width,
+    plot_height, combined_ncol.
+    Fixed: pigment ordering and colour classes are based on the column names: amounts first, then vaz
+    and deps, then the grey ratios ratio_ab and ratio_chlcar (a ratio with another name is treated as
+    an amount); y-axis labels "<pigment> mean ± CI" or "median ± CI";
+    combined figure name ALL_pigments_bar_CLD.

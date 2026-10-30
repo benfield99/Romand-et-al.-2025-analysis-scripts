@@ -44,3 +44,45 @@ Time codes: T0 = before EL, T2h-HL = after 2 h EL, T0.5-r / T2h-r / T4h-r = afte
 T24 / T48 = after 24 / 48 h EL.
 Line codes: WT / col0 = wild type, h1 / H1 = OX:RSH3.1, h1npq1 / h1npq4 = OX:RSH3.1 npq1 / npq4,
 h1ch1 = OX:RSH3.1 ch1, glk12 = glk1,2.
+
+What you can change, and what is fixed in the code
+  Common to the ART scripts (fixed): column names time, line and rep; replicate colours for up to four
+  replicates (three in fvfm_T0_T24_raw_normalized.r); significance level 0.05; bootstrap 5000
+  resamples, 95% CI.
+
+  fvfm_detached_leaf_ART.r
+    Settings: RefLine, target_order (lines, in plot order), time_order, DATA (input file).
+    Fixed: response column Fv_Fm; y axis 0-1 with breaks every 0.2; output fvfm_plot.svg, 8 x 3 in.
+
+  fvfm_F0_Fm_detached_leaf_ART.r
+    Settings: target_order, time_order, DATA, RESPONSE (column analysed). RefLine is not used.
+    Fixed: output folder and file names follow RESPONSE; y-axis label = RESPONSE (relabelled by
+    combine_figure.R).
+
+  combine_figure.R
+    Settings: PANELS (folder and y-axis title of each panel, in reading order), N_COL, target_order,
+    LINE_LABELS (x-axis names), TIME_LABELS (time point names), TAGS (panel letters), FIG_WIDTH,
+    FIG_HEIGHT, TEXT_PT, LETTER_PT, POINT_SIZE, OUT_BASE (output file name).
+    Fixed: reads <folder>/<folder>_plot.rds written by fvfm_F0_Fm_detached_leaf_ART.r.
+
+  rebuild_combined_data.R
+    Settings: EXPERIMENTS (folder of each replicate), VARS (FluorCam variables kept), NORM_VARS
+    (variables normalised to T0), TIME_MAP (time codes in file names -> data), OUT_FILE, CHECK_FILE.
+    Fixed: FluorCam 7 numeric export format; file names <time>_<line>.TXT.
+
+  fvfm_raw_and_normalised_ART.r
+    Settings: RefLine, target_order, time_order, DATA.
+    Fixed: columns Fv_Fm and normalized_value; the normalised panel shows T48; outputs
+    fvfm_4panel_normalized.svg (11 x 3 in), fvfm_raw_3panel.svg, fvfm_normalized_T48.svg.
+
+  fvfm_T0_T24_raw_normalized.r
+    Settings: RefLine, target_order, time_order, DATA.
+    Fixed: columns Fv_Fm and normalized_value; outputs fvfm_T0_T24_raw_normalized.svg (11 x 4 in),
+    fvfm_raw_T0_T24.svg and fvfm_normalized_T0_T24.svg (6 x 4 in).
+
+  FvFm_overlays_spline.R
+    No separate settings block; edit the values near the top of the script: input file name,
+    time_order, line_order, colours (my_colors) and point shapes (my_shapes) for each line.
+    Further down: the lines shown in each of the three panels (make_panel() calls), the y axis
+    (0.4-1.1) and the output file (FvFm_overlays_spline.svg, 8 x 3 in). Fixed: column normalized_value;
+    bootstrap seed 42.

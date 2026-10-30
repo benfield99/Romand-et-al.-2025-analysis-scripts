@@ -26,3 +26,18 @@ Example data
   Copy the script into the example folder and run it there.
 
 Colours: wild type black; OX:RSH3.1 light green; OX:RSH3.2 dark green.
+
+What you can change
+  Settings at the top:
+    files                  input files for each line
+    MovingPoint            Savitzky-Golay window (window = MovingPoint + 1; even number)
+    RepTechNb              number of technical replicate spectra per file
+    band_min, band_max     wavelength band analysed (nm)
+
+Fixed in the code (edit the code to change)
+  - Line names: the list names in files must be wt (wild type), h (OX:RSH3.1) and g8 (OX:RSH3.2). They
+    are renamed col, h1 and g8, and col is the reference for the difference spectra. Colours are set
+    for these three names.
+  - Normalisation window for the PSII peak: 650-700 nm.
+  - Simulations: 1500 (difference curves) and 4000 (peaks, p-values), with fixed random seeds.
+  - Plot size 5 x 4 in; axis labels.
